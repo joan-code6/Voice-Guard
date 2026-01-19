@@ -1,0 +1,19 @@
+voiceguard:
+  backend:
+    url: "http://localhost:8000"
+    timeout: 30
+    retry_attempts: 3
+  buffer:
+    pre_trigger_seconds: 30
+    post_trigger_seconds: 15
+  privacy:
+    consent_message: |
+      &e&l[VoiceGuard] &r&7This server monitors voice chat for safety.
+      &7Your voice may be recorded and analyzed if inappropriate language is detected.
+      &7Type &a/accept&7 to continue or &c/deny&7 to leave.
+    kick_message: "&cYou must accept voice monitoring to play on this server."
+  enabled_worlds:
+    - world
+    - world_nether
+    - world_the_end
+  debug: false

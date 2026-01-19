@@ -1,0 +1,6 @@
+badword1
+badword2
+offensive_term
+test
+slur
+testing
