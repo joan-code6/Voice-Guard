@@ -1,0 +1,19 @@
+name: VoiceGuard
+version: 1.0
+main: de.joancode.VoiceGuard
+api-version: 1.20.6
+prefix: VoiceGuard
+authors: [Joan Code]
+dependencies:
+  server:
+    voicechat:
+      load: BEFORE
+      required: true
+      join-classpath: true
+commands:
+  privacy:
+    description: Privacy consent and opt-out command
+    usage: /privacy opt-out
+  acceptdeny:
+    description: Accept or deny privacy consent
+    usage: /acceptdeny <accept|deny>
