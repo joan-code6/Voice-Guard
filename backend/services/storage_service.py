@@ -11,8 +11,19 @@ class StorageService:
         date = datetime.now().strftime("%Y-%m-%d")
         date_dir = os.path.join(self.storage_dir, date)
         os.makedirs(date_dir, exist_ok=True)
-        filename = f"{player_uuid}_{timestamp.replace(':', '-')}.wav"
+        filename = f"{player_uuid}_{timestamp.replace(':', '-')}.opus"
         return os.path.join(date_dir, filename)
+    
+    def save_audio(self, player_uuid: str, server_id: str, player_name: str, timestamp: str, audio_data: bytes) -> str:
+        safe_name = player_name.replace(' ', '_').replace('/', '_')
+        filename = f"{player_uuid}_{server_id}_{safe_name}_{timestamp.replace(':', '-')}.opus"
+        date = datetime.now().strftime("%Y-%m-%d")
+        date_dir = os.path.join(self.storage_dir, date)
+        os.makedirs(date_dir, exist_ok=True)
+        file_path = os.path.join(date_dir, filename)
+        with open(file_path, 'wb') as f:
+            f.write(audio_data)
+        return file_path
     
     def save_detection(self, detection_data: dict):
         query = """

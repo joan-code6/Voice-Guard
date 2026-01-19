@@ -11,6 +11,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 
 public class VoiceChatListener implements VoicechatPlugin {
 
@@ -18,13 +20,6 @@ public class VoiceChatListener implements VoicechatPlugin {
         public String getPluginId() {
             return "voiceguard";
         }
-    private static final Map<UUID, AudioBuffer> playerBuffers = new HashMap<>();
-    private static final int BUFFER_SECONDS = 30;
-    private static final int SAMPLE_RATE = 16000;
-    private static final int CHANNELS = 1;
-    private static final int BYTES_PER_SAMPLE = 2;
-    private static final int CHUNK_SIZE = SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE / 10; // 100ms per chunk
-    private static final int MAX_CHUNKS = (BUFFER_SECONDS * 1000) / 100; // 100ms chunks
 
     private static BackendClient backendClientRef;
 
@@ -40,21 +35,26 @@ public class VoiceChatListener implements VoicechatPlugin {
         UUID playerUuid = event.getSenderConnection().getPlayer().getUuid();
         byte[] opusData = event.getPacket().getOpusEncodedData();
         long timestamp = System.currentTimeMillis();
-        AudioChunk chunk = new AudioChunk(timestamp, opusData, playerUuid);
-        AudioBuffer buffer = playerBuffers.computeIfAbsent(playerUuid, k -> new AudioBuffer(MAX_CHUNKS));
-        buffer.addChunk(chunk);
-        Bukkit.getLogger().info("[VoiceGuard] Buffered audio chunk for " + playerUuid);
-        // --- BAD WORD DETECTION STUB ---
-        // In real implementation, trigger backend only if detection is needed
-        boolean badWordDetected = false; // TODO: Replace with actual detection logic
-        if (badWordDetected) {
-            // Combine 30s buffer + 15s extension (not implemented here)
-            // Save to temp file and send to backend
-            File tempOpusFile = null; // TODO: Write buffer to file
-            if (backendClientRef != null) {
-                backendClientRef.sendAudio(tempOpusFile, playerUuid.toString(), "PlayerName", String.valueOf(timestamp), "main-server");
-                Bukkit.getLogger().info("[VoiceGuard] Sent audio to backend for " + playerUuid);
+        
+        // Create a temporary file for the audio chunk
+        File tempOpusFile = null;
+        try {
+            tempOpusFile = File.createTempFile("voiceguard_" + playerUuid + "_" + timestamp, ".opus");
+            try (FileOutputStream fos = new FileOutputStream(tempOpusFile)) {
+                fos.write(opusData);
             }
+        } catch (IOException e) {
+            Bukkit.getLogger().warning("[VoiceGuard] Failed to create temp file for audio: " + e.getMessage());
+            return;
         }
+        
+        // Send to backend
+        if (backendClientRef != null) {
+            backendClientRef.sendAudio(tempOpusFile, playerUuid.toString(), "PlayerName", String.valueOf(timestamp), "main-server");
+            Bukkit.getLogger().info("[VoiceGuard] Sent audio chunk to backend for " + playerUuid);
+        }
+        
+        // Clean up temp file after sending (optional, as it will be deleted on JVM exit)
+        tempOpusFile.delete();
     }
 }

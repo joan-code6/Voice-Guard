@@ -1,9 +1,0 @@
-name: VoiceGuard
-version: 1.0
-main: de.joancode.VoiceGuard
-api-version: 1.20.6
-authors: [Joan Code]
-commands:
-  privacy:
-    description: Privacy consent and opt-out command
-    usage: /privacy <accept|deny|opt-out>

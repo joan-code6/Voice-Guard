@@ -18,7 +18,7 @@
 
     <build>
         <defaultGoal>clean package</defaultGoal>
-        <sourceDirectory>main/java</sourceDirectory>
+        <sourceDirectory>src/main/java</sourceDirectory>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -45,7 +45,7 @@
         </plugins>
         <resources>
             <resource>
-                <directory>main/resources</directory>
+                <directory>src/main/resources</directory>
                 <filtering>true</filtering>
             </resource>
         </resources>
