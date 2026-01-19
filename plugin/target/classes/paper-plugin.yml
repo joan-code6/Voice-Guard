@@ -13,5 +13,5 @@ dependencies:
 commands:
   privacy:
     description: Privacy consent and opt-out command
-    usage: /privacy <accept|deny|opt-out>
+    usage: /privacy opt-out
 
