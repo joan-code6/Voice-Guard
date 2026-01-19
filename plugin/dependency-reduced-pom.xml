@@ -6,12 +6,12 @@
   <name>VoiceGuard</name>
   <version>1.0</version>
   <build>
-    <sourceDirectory>main/java</sourceDirectory>
+    <sourceDirectory>src/main/java</sourceDirectory>
     <defaultGoal>clean package</defaultGoal>
     <resources>
       <resource>
         <filtering>true</filtering>
-        <directory>main/resources</directory>
+        <directory>src/main/resources</directory>
       </resource>
     </resources>
     <plugins>
