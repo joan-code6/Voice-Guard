@@ -6,7 +6,7 @@ voiceguard:
   buffer:
     pre_trigger_seconds: 30
     post_trigger_seconds: 15
-      fade_out: 20
+    fade_out: 20
   enabled_worlds:
     - world
     - world_nether

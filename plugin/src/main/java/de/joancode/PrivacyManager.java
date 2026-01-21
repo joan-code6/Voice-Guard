@@ -1,7 +1,9 @@
 package de.joancode;
 
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.plugin.Plugin;
+import org.bukkit.plugin.java.JavaPlugin;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
@@ -9,46 +11,52 @@ import java.util.Map;
 import java.util.UUID;
 
 public class PrivacyManager {
-    private final Plugin plugin;
+    private final Map<UUID, Boolean> consents = new HashMap<>();
+    private final JavaPlugin plugin;
     private final File privacyFile;
-    private final YamlConfiguration privacyConfig;
-    private final Map<UUID, Boolean> consentCache = new HashMap<>();
+    private FileConfiguration privacyConfig;
 
-    public PrivacyManager(Plugin plugin) {
+    public PrivacyManager(JavaPlugin plugin) {
         this.plugin = plugin;
         this.privacyFile = new File(plugin.getDataFolder(), "privacy.yml");
+        loadConsents();
+    }
+
+    private void loadConsents() {
         if (!privacyFile.exists()) {
-            try {
-                privacyFile.createNewFile();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            plugin.saveResource("privacy.yml", false);
         }
-        this.privacyConfig = YamlConfiguration.loadConfiguration(privacyFile);
-    }
-
-    public boolean hasConsented(UUID uuid) {
-        if (consentCache.containsKey(uuid)) {
-            return consentCache.get(uuid);
+        privacyConfig = YamlConfiguration.loadConfiguration(privacyFile);
+        for (String key : privacyConfig.getKeys(false)) {
+            UUID uuid = UUID.fromString(key);
+            boolean consent = privacyConfig.getBoolean(key);
+            consents.put(uuid, consent);
         }
-        boolean consented = privacyConfig.getBoolean("players." + uuid + ".consented", false);
-        consentCache.put(uuid, consented);
-        return consented;
     }
 
-    public void setConsent(UUID uuid, boolean consented) {
-        privacyConfig.set("players." + uuid + ".consented", consented);
-        privacyConfig.set("players." + uuid + ".timestamp", java.time.Instant.now().toString());
-        consentCache.put(uuid, consented);
-        save();
-        plugin.getLogger().info("Consent for " + uuid + ": " + consented);
-    }
-
-    public void save() {
+    private void saveConsents() {
+        for (Map.Entry<UUID, Boolean> entry : consents.entrySet()) {
+            privacyConfig.set(entry.getKey().toString(), entry.getValue());
+        }
         try {
             privacyConfig.save(privacyFile);
         } catch (IOException e) {
-            e.printStackTrace();
+            plugin.getLogger().severe("Failed to save privacy consents: " + e.getMessage());
         }
+    }
+
+    public void setConsent(UUID playerId, boolean consent) {
+        consents.put(playerId, consent);
+        saveConsents();
+    }
+
+    public boolean hasConsent(UUID playerId) {
+        return consents.getOrDefault(playerId, false);
+    }
+
+    public void revokeConsent(UUID playerId) {
+        consents.remove(playerId);
+        privacyConfig.set(playerId.toString(), null);
+        saveConsents();
     }
 }

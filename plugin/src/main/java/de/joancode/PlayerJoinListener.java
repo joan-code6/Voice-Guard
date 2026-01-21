@@ -19,8 +19,10 @@ public class PlayerJoinListener implements Listener {
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        if (!privacyManager.hasConsented(player.getUniqueId())) {
-            // Apply blindness effect and show a title prompting the player to read TOS and accept/deny
+        if (!privacyManager.hasConsent(player.getUniqueId())) {
+            // Set to spectator mode to prevent interaction
+            player.setGameMode(org.bukkit.GameMode.SPECTATOR);
+            // Apply blindness effect
             int durationTicks = plugin.getConfig().getInt("voiceguard.privacy.title.stay", 200);
             // Add some extra time so blindness lasts while title is showing
             int blindnessDuration = Math.max(200, durationTicks) + 40;

@@ -1,60 +1,65 @@
 package de.joancode;
 
-import de.maxhenkel.voicechat.api.VoicechatServerApi;
-import de.maxhenkel.voicechat.api.events.MicrophonePacketEvent;
-import de.maxhenkel.voicechat.api.events.VoicechatServerStartedEvent;
+import de.maxhenkel.voicechat.api.VoicechatApi;
 import de.maxhenkel.voicechat.api.VoicechatPlugin;
+import de.maxhenkel.voicechat.api.events.EventRegistration;
+import de.maxhenkel.voicechat.api.events.MicrophonePacketEvent;
 import org.bukkit.Bukkit;
-import org.bukkit.entity.Player;
-import org.bukkit.plugin.Plugin;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.UUID;
 
 public class VoiceChatListener implements VoicechatPlugin {
 
-        @Override
-        public String getPluginId() {
-            return "voiceguard";
-        }
-
-    private static BackendClient backendClientRef;
-
-    public static void register(Plugin plugin, BackendClient backendClient) {
-        // Register with Simple Voice Chat API
-        Bukkit.getLogger().info("[VoiceGuard] Registering VoiceChatListener (stub, implement with API)");
-        backendClientRef = backendClient;
-        // ...actual registration code with Simple Voice Chat API goes here...
+    public VoiceChatListener() {
+        Bukkit.getLogger().info("[VoiceGuard] VoiceChatListener instantiated");
     }
 
-    // Example event handler (pseudo-code, replace with actual API usage)
-    public void onMicrophonePacket(MicrophonePacketEvent event) {
-        UUID playerUuid = event.getSenderConnection().getPlayer().getUuid();
-        byte[] opusData = event.getPacket().getOpusEncodedData();
-        long timestamp = System.currentTimeMillis();
-        
-        // Create a temporary file for the audio chunk
-        File tempOpusFile = null;
+    @Override
+    public String getPluginId() {
+        return "voiceguard";
+    }
+
+    @Override
+    public void initialize(VoicechatApi api) {
+        Bukkit.getLogger().info("[VoiceGuard] VoiceChatListener initialized with API");
+    }
+
+    @Override
+    public void registerEvents(EventRegistration registration) {
+        registration.registerEvent(MicrophonePacketEvent.class, this::onMicrophonePacket);
+    }
+
+    private static BackendClient backendClient;
+
+    public static void setBackendClient(BackendClient client) {
+        backendClient = client;
+    }
+
+    private void onMicrophonePacket(MicrophonePacketEvent event) {
         try {
-            tempOpusFile = File.createTempFile("voiceguard_" + playerUuid + "_" + timestamp, ".opus");
+            UUID playerUuid = event.getSenderConnection().getPlayer().getUuid();
+            byte[] opusData = event.getPacket().getOpusEncodedData();
+            long timestamp = System.currentTimeMillis();
+            Bukkit.getLogger().info("[VoiceGuard] Microphone packet received for " + playerUuid);
+
+            File tempOpusFile = File.createTempFile("voiceguard_" + playerUuid + "_" + timestamp, ".opus");
             try (FileOutputStream fos = new FileOutputStream(tempOpusFile)) {
                 fos.write(opusData);
             }
+
+            if (backendClient != null) {
+                backendClient.sendAudio(tempOpusFile, playerUuid.toString(), playerUuid.toString(), String.valueOf(timestamp), "main-server");
+                Bukkit.getLogger().info("[VoiceGuard] Queued audio chunk for backend (async) for " + playerUuid);
+            } else {
+                Bukkit.getLogger().warning("[VoiceGuard] Backend client is null, cannot send audio");
+            }
+
+            // Cleanup now handled by BackendClient after response/failure
         } catch (IOException e) {
-            Bukkit.getLogger().warning("[VoiceGuard] Failed to create temp file for audio: " + e.getMessage());
-            return;
+            Bukkit.getLogger().warning("[VoiceGuard] Failed to process microphone packet: " + e.getMessage());
         }
-        
-        // Send to backend
-        if (backendClientRef != null) {
-            backendClientRef.sendAudio(tempOpusFile, playerUuid.toString(), "PlayerName", String.valueOf(timestamp), "main-server");
-            Bukkit.getLogger().info("[VoiceGuard] Sent audio chunk to backend for " + playerUuid);
-        }
-        
-        // Clean up temp file after sending (optional, as it will be deleted on JVM exit)
-        tempOpusFile.delete();
     }
 }

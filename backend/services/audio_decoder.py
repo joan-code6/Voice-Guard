@@ -1,6 +1,21 @@
 import ffmpeg
 import os
 
+# Diagnostic check: some environments install a different PyPI package named
+# `ffmpeg` which conflicts with `ffmpeg-python` (the package we need).
+# If the imported module doesn't expose the ffmpeg-python API, raise a
+# clear error that includes the module path to help debugging.
+if not hasattr(ffmpeg, "input") or not hasattr(ffmpeg, "probe"):
+    mod_path = getattr(ffmpeg, "__file__", "(built-in or unknown)")
+    available = sorted([name for name in dir(ffmpeg) if not name.startswith("__")])
+    raise ImportError(
+        "Imported 'ffmpeg' module does not look like ffmpeg-python.\n"
+        f"Module path: {mod_path}\n"
+        f"Available attributes: {available[:30]}\n"
+        "If you have the PyPI package 'ffmpeg' installed, uninstall it\n"
+        "and install 'ffmpeg-python' (pip uninstall ffmpeg; pip install ffmpeg-python)."
+    )
+
 def decode_opus_to_wav(opus_path: str, wav_path: str):
     """
     Decode Opus audio to WAV format using FFmpeg.

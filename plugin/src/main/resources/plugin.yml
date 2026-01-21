@@ -3,4 +3,7 @@ version: 1.0
 main: de.joancode.VoiceGuard
 api-version: 1.20.6
 authors: [Joan Code]
+softdepend: [voicechat]
+voicechat:
+  plugin: de.joancode.VoiceChatListener
 
