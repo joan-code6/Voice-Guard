@@ -43,7 +43,6 @@ public class VoiceChatListener implements VoicechatPlugin {
             UUID playerUuid = event.getSenderConnection().getPlayer().getUuid();
             byte[] opusData = event.getPacket().getOpusEncodedData();
             long timestamp = System.currentTimeMillis();
-            Bukkit.getLogger().info("[VoiceGuard] Microphone packet received for " + playerUuid);
 
             File tempOpusFile = File.createTempFile("voiceguard_" + playerUuid + "_" + timestamp, ".opus");
             try (FileOutputStream fos = new FileOutputStream(tempOpusFile)) {
@@ -52,7 +51,6 @@ public class VoiceChatListener implements VoicechatPlugin {
 
             if (backendClient != null) {
                 backendClient.sendAudio(tempOpusFile, playerUuid.toString(), playerUuid.toString(), String.valueOf(timestamp), "main-server");
-                Bukkit.getLogger().info("[VoiceGuard] Queued audio chunk for backend (async) for " + playerUuid);
             } else {
                 Bukkit.getLogger().warning("[VoiceGuard] Backend client is null, cannot send audio");
             }
