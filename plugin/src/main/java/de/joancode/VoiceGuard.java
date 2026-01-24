@@ -10,9 +10,15 @@ import java.lang.reflect.Constructor;
 public class VoiceGuard extends JavaPlugin {
     private BackendClient backendClient;
     private PrivacyManager privacyManager;
+    private boolean isFolia;
 
     @Override
     public void onEnable() {
+        // Check if server is Folia
+        isFolia = getServer().getName().equalsIgnoreCase("Folia");
+        if (isFolia) {
+            getLogger().info("Detected Folia server. Ensuring Folia compatibility.");
+        }
         // Load config
         saveDefaultConfig();
         // Initialize backend client
@@ -67,5 +73,9 @@ public class VoiceGuard extends JavaPlugin {
 
     public PrivacyManager getPrivacyManager() {
         return privacyManager;
+    }
+
+    public boolean isFolia() {
+        return isFolia;
     }
 }

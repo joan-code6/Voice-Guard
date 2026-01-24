@@ -12,3 +12,13 @@ voiceguard:
     - world_nether
     - world_the_end
   debug: false
+  privacy:
+    title:
+      header: "LEGAL INFORMATIONS"
+      subtitle: "Read the terms and /privacy accept or /privacy deny"
+      fade_in: 10
+      stay: 200
+      fade_out: 20
+    tos_url: "tos.outcraft.net"
+    tos_text: "Welcome to our server!\n\nBy playing on this server, you agree to our Terms of Service.\n\nVoiceGuard collects voice data to provide moderation services.\n\nTo accept, use /privacy accept.\nTo deny, use /privacy deny."
+    kick_message: "You must accept voice monitoring to play on this server."
