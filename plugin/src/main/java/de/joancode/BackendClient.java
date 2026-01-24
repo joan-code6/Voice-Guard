@@ -14,12 +14,14 @@ public class BackendClient {
     private final HttpUrl analyzeUrl;
     private final Plugin plugin;
     private final long minIntervalMs;
+    private final boolean debug;
     private final AtomicLong lastSentMs = new AtomicLong(0);
 
-    public BackendClient(Plugin plugin, String backendUrl, int timeoutSeconds, long minIntervalMs) {
+    public BackendClient(Plugin plugin, String backendUrl, int timeoutSeconds, long minIntervalMs, boolean debug) {
         this.plugin = plugin;
         this.backendUrl = normalizeBackendUrl(backendUrl);
         this.minIntervalMs = Math.max(0, minIntervalMs);
+        this.debug = debug;
         this.client = new OkHttpClient.Builder()
                 .callTimeout(timeoutSeconds, TimeUnit.SECONDS)
                 .build();
@@ -46,6 +48,14 @@ public class BackendClient {
     }
 
     public void sendAudio(File audioFile, String playerUuid, String playerName, String timestamp, String serverId) {
+        if (((VoiceGuard) plugin).isDisabled()) {
+            if (audioFile != null) {
+                // cleanup temp file
+                //noinspection ResultOfMethodCallIgnored
+                audioFile.delete();
+            }
+            return;
+        }
         long now = System.currentTimeMillis();
         long prev = lastSentMs.get();
         if (now - prev < minIntervalMs) {
@@ -59,7 +69,10 @@ public class BackendClient {
             return;
         }
         lastSentMs.set(now);
-        plugin.getLogger().info("Sending audio to backend for player " + playerName + " (" + playerUuid + ") at " + timestamp);
+        if (debug) {
+            plugin.getLogger().info("Sending audio to backend for player " + playerName + " (" + playerUuid + ") at " + timestamp);
+        } else {
+        }
         RequestBody requestBody = new MultipartBody.Builder().setType(MultipartBody.FORM)
                 .addFormDataPart("audio", audioFile != null ? audioFile.getName() : "null", audioFile != null ? RequestBody.create(audioFile, MediaType.parse("audio/opus")) : null)
                 .addFormDataPart("player_uuid", playerUuid)
@@ -71,7 +84,10 @@ public class BackendClient {
                 .url(analyzeUrl)
                 .post(requestBody)
                 .build();
-        plugin.getLogger().info("Sending audio file to backend: " + analyzeUrl);
+        if (debug) {
+            plugin.getLogger().info("Sending audio file to backend: " + analyzeUrl);
+        } else {
+        }
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {

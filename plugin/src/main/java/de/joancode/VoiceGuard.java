@@ -11,6 +11,7 @@ public class VoiceGuard extends JavaPlugin {
     private BackendClient backendClient;
     private PrivacyManager privacyManager;
     private boolean isFolia;
+    private boolean disabled = false;
 
     @Override
     public void onEnable() {
@@ -25,7 +26,8 @@ public class VoiceGuard extends JavaPlugin {
         String backendUrl = getConfig().getString("voiceguard.backend.url", "http://localhost:8000");
         int timeout = getConfig().getInt("voiceguard.backend.timeout", 30);
         long minIntervalMs = getConfig().getLong("voiceguard.backend.min_interval_ms", 200L);
-        backendClient = new BackendClient(this, backendUrl, timeout, minIntervalMs);
+        boolean debug = getConfig().getBoolean("voiceguard.debug", false);
+        backendClient = new BackendClient(this, backendUrl, timeout, minIntervalMs, debug);
         // Initialize privacy manager
         privacyManager = new PrivacyManager(this);
         // Set backend client for voice chat listener
@@ -77,5 +79,13 @@ public class VoiceGuard extends JavaPlugin {
 
     public boolean isFolia() {
         return isFolia;
+    }
+
+    public boolean isDisabled() {
+        return disabled;
+    }
+
+    public void setDisabled(boolean disabled) {
+        this.disabled = disabled;
     }
 }

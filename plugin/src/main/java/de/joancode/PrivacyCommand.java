@@ -78,14 +78,16 @@ public class PrivacyCommand implements CommandExecutor, TabCompleter {
         }
 
         else if (args[0].equalsIgnoreCase("help")) {
-            final Component PrivacyHelp = MiniMessage.miniMessage().deserialize(
-                "<red><bold>Privacy Command Help</bold></red>\n" +
+            StringBuilder help = new StringBuilder("<red><bold>Privacy Command Help</bold></red>\n" +
                 "<green>/privacy info</green> - Show privacy information.\n" +
                 "<green>/privacy accept</green> - Accept the privacy policy.\n" +
                 "<green>/privacy deny</green> or <green>/privacy opt-out</green> - Opt out and leave the server.\n" +
                 "<green>/privacy tos</green> - Show the full Terms of Service.\n" +
-                "<green>/privacy help</green> - Show this help message."
-            );
+                "<green>/privacy help</green> - Show this help message.");
+            if (sender.hasPermission("voiceguard.admin")) {
+                help.append("\n<red>/privacy admin disable</red> - Disable VoiceGuard (admin only).");
+            }
+            final Component PrivacyHelp = MiniMessage.miniMessage().deserialize(help.toString());
 
             sender.sendMessage(PrivacyHelp);
             return true;
@@ -105,6 +107,26 @@ public class PrivacyCommand implements CommandExecutor, TabCompleter {
                 "<green><bold>Success</bold></green> VoiceGuard configuration reloaded."
             );
             sender.sendMessage(Reloaded);
+        } else if (args.length >= 2 && args[0].equalsIgnoreCase("admin")) {
+            if (!sender.hasPermission("voiceguard.admin")) {
+                final Component NoPermission = MiniMessage.miniMessage().deserialize(
+                    "<red><bold>Error</bold></red> You do not have permission to execute this command."
+                );
+                sender.sendMessage(NoPermission);
+                return true;
+            }
+            if (args[1].equalsIgnoreCase("disable")) {
+                plugin.setDisabled(true);
+                final Component Disabled = MiniMessage.miniMessage().deserialize(
+                    "<yellow><bold>Warning</bold></yellow> VoiceGuard has been disabled. No more data will be sent or collected."
+                );
+                sender.sendMessage(Disabled);
+            } else {
+                final Component InvalidAdmin = MiniMessage.miniMessage().deserialize(
+                    "<red><bold>Error</bold></red> Invalid admin command. Use /privacy admin disable."
+                );
+                sender.sendMessage(InvalidAdmin);
+            }
         } else {
             final Component InvalidArg = MiniMessage.miniMessage().deserialize(
                 "<red><bold>Error</bold></red> Invalid argument. Use /privacy help for help."
@@ -119,7 +141,7 @@ public class PrivacyCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             List<String> completions = new ArrayList<>();
             String input = args[0].toLowerCase();
-            for (String sub : new String[]{"accept", "deny", "opt-out", "tos", "info", "help", "reload"}) {
+            for (String sub : new String[]{"accept", "deny", "opt-out", "tos", "info", "help", "reload", "admin"}) {
                 if (sub.startsWith(input)) {
                     completions.add(sub);
                 }
