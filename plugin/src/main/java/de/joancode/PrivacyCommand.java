@@ -41,7 +41,7 @@ public class PrivacyCommand implements CommandExecutor, TabCompleter {
                 player.setGameMode(org.bukkit.GameMode.SURVIVAL);
             }
             final Component PrivacyAccepted = MiniMessage.miniMessage().deserialize(
-                "<red><bold>Privacy</bold></red> You accepted our GDPR policy. You can opt out at any Moment using /privacy opt-out."
+                "<red><bold>Privacy</bold></red> You accepted our TOS and privacy policy. You can opt out at any Moment using /privacy opt-out."
             );
             sender.sendMessage(PrivacyAccepted);
         }
@@ -49,7 +49,7 @@ public class PrivacyCommand implements CommandExecutor, TabCompleter {
         else if (args.length > 0 && (args[0].equalsIgnoreCase("deny") || args[0].equalsIgnoreCase("opt-out"))) {
             plugin.getPrivacyManager().revokeConsent(player.getUniqueId());
             final Component PrivacyOptedOut = MiniMessage.miniMessage().deserialize(
-                "<red><bold>Privacy</bold></red> You opted out of our GDPR policy."
+                "<red><bold>Privacy</bold></red> You opted out of our TOS and privacy policy."
             );
             sender.sendMessage(PrivacyOptedOut);
             // Kick the player

@@ -18,7 +18,6 @@ public class AudioBuffer {
         while (buffer.size() > maxChunks) {
             buffer.pollFirst();
         }
-        System.out.println("[VoiceGuard] AudioBuffer: Added chunk for " + chunk.getPlayerUuid() + " at " + chunk.getTimestamp());
     }
 
     public AudioChunk[] getAllChunks() {

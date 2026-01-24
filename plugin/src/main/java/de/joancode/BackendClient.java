@@ -86,7 +86,7 @@ public class BackendClient {
                 if (!response.isSuccessful()) {
                     Bukkit.getLogger().warning("[VoiceGuard] Backend returned error: " + response.code());
                 } else {
-                    Bukkit.getLogger().info("[VoiceGuard] Backend response: " + (response.body() != null ? response.body().string() : "<no body>"));
+
                 }
                 response.close();
                 if (audioFile != null) {
