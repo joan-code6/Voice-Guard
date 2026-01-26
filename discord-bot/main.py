@@ -98,75 +98,78 @@ async def on_voice_state_update(member, before, after):
                 await start_audio_stream(vc, member)
 
 async def start_audio_stream(vc, member):
-    # Custom audio sink implementation
-    class AudioSink:
-        def __init__(self, member):
-            self.member = member
-            self.vad = webrtcvad.Vad(3)  # Aggressiveness 0-3
-            self.encoder = opuslib.Encoder(48000, 2, 'voip')  # Stereo opus encoder
-            self.buffer = b''
-            self.speaking = False
-            self.finished = False
-
-        def write(self, user, data):
-            if user != self.member or self.finished:
-                return
-            # data is PCM 48kHz 16-bit stereo
-            # Convert to mono for VAD
-            mono_data = audioop.tomono(data.data if hasattr(data, 'data') else data, 2, 0.5, 0.5)
-            # Check VAD
+    # Custom audio callback for voice receive
+    audio_buffers = {}
+    
+    def audio_callback(user, data):
+        if user.id != member.id:
+            return
+        
+        # Initialize buffer for this user if not exists
+        if user.id not in audio_buffers:
+            audio_buffers[user.id] = {
+                'vad': webrtcvad.Vad(3),
+                'encoder': opuslib.Encoder(48000, 2, 'voip'),
+                'buffer': b'',
+                'speaking': False
+            }
+        
+        user_data = audio_buffers[user.id]
+        
+        # data.pcm is the audio data
+        pcm_data = data.pcm if hasattr(data, 'pcm') else data
+        
+        # Convert to mono for VAD
+        try:
+            mono_data = audioop.tomono(pcm_data, 2, 0.5, 0.5)
+            is_speech = user_data['vad'].is_speech(mono_data, 48000)
+        except:
+            return
+        
+        if is_speech and not user_data['speaking']:
+            user_data['speaking'] = True
+            user_data['buffer'] = pcm_data
+        elif is_speech:
+            user_data['buffer'] += pcm_data
+        elif user_data['speaking']:
+            user_data['speaking'] = False
+            # Send buffer to backend
+            asyncio.create_task(send_audio_to_backend(user_data['buffer'], member, user_data['encoder']))
+            user_data['buffer'] = b''
+    
+    async def send_audio_to_backend(pcm_data, member, encoder):
+        # Encode to opus
+        frame_size = 960  # 20ms at 48kHz
+        opus_packets = []
+        for i in range(0, len(pcm_data), frame_size * 4):  # 4 bytes per sample stereo
+            chunk = pcm_data[i:i + frame_size * 4]
+            if len(chunk) < frame_size * 4:
+                chunk += b'\x00' * (frame_size * 4 - len(chunk))
             try:
-                is_speech = self.vad.is_speech(mono_data, 48000)
+                opus_packet = encoder.encode(chunk, frame_size)
+                opus_packets.append(opus_packet)
             except:
-                return
-            if is_speech and not self.speaking:
-                self.speaking = True
-                self.buffer = data.data if hasattr(data, 'data') else data
-            elif is_speech:
-                self.buffer += data.data if hasattr(data, 'data') else data
-            elif self.speaking:
-                self.speaking = False
-                # Send buffer to backend
-                asyncio.create_task(self.send_to_backend(self.buffer))
-                self.buffer = b''
-
-        async def send_to_backend(self, pcm_data):
-            # Encode to opus
-            frame_size = 960  # 20ms at 48kHz
-            opus_packets = []
-            for i in range(0, len(pcm_data), frame_size * 4):  # 4 bytes per sample stereo
-                chunk = pcm_data[i:i + frame_size * 4]
-                if len(chunk) < frame_size * 4:
-                    chunk += b'\x00' * (frame_size * 4 - len(chunk))
-                try:
-                    opus_packet = self.encoder.encode(chunk, frame_size)
-                    opus_packets.append(opus_packet)
-                except:
-                    continue
-            if not opus_packets:
-                return
-            opus_data = b''.join(opus_packets)
-            # Send to backend
-            async with aiohttp.ClientSession() as session:
-                data = aiohttp.FormData()
-                data.add_field('audio', io.BytesIO(opus_data), filename='audio.opus')
-                data.add_field('player_uuid', str(self.member.id))
-                data.add_field('player_name', self.member.display_name)
-                data.add_field('server_uuid', str(self.member.guild.id))
-                try:
-                    async with session.post(f"{BACKEND_URL}/analyze", data=data) as resp:
-                        pass  # Maybe log response
-                except Exception as e:
-                    print(f"Error sending to backend: {e}")
-
-        def cleanup(self):
-            self.finished = True
-
-    sink = AudioSink(member)
+                continue
+        if not opus_packets:
+            return
+        opus_data = b''.join(opus_packets)
+        # Send to backend
+        async with aiohttp.ClientSession() as session:
+            data = aiohttp.FormData()
+            data.add_field('audio', io.BytesIO(opus_data), filename='audio.opus')
+            data.add_field('player_uuid', str(member.id))
+            data.add_field('player_name', member.display_name)
+            data.add_field('server_uuid', str(member.guild.id))
+            try:
+                async with session.post(f"{BACKEND_URL}/analyze", data=data) as resp:
+                    pass  # Maybe log response
+            except Exception as e:
+                print(f"Error sending to backend: {e}")
+    
     try:
-        vc.start_recording(sink, lambda u, e: None, lambda: None)
+        vc.listen(discord.UserFilter(audio_callback, member))
     except Exception as e:
-        print(f"Error starting recording: {e}")
+        print(f"Error starting voice receive: {e}")
 
 @bot.event
 async def on_ready():
