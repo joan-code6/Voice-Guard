@@ -98,51 +98,53 @@ async def on_voice_state_update(member, before, after):
                 await start_audio_stream(vc, member)
 
 async def start_audio_stream(vc, member):
-    # Use Pycord's voice receive with sink
-    from discord.sinks import WaveSink
-    
-    class CustomSink(WaveSink):
-        def __init__(self, member_to_track):
-            super().__init__()
-            self.member_to_track = member_to_track
+    # Create a custom voice receiver
+    class VoiceReceiver:
+        def __init__(self, vc, member):
+            self.vc = vc
+            self.member = member
             self.vad = webrtcvad.Vad(3)
             self.encoder = opuslib.Encoder(48000, 2, 'voip')
-            self.audio_buffer = {}
+            self.buffer = b''
+            self.speaking = False
+            self.running = True
             
-        @WaveSink.listener()
-        def on_data(self, user, data):
-            if user.id != self.member_to_track.id:
-                return
-                
-            # Initialize user buffer if needed
-            if user.id not in self.audio_buffer:
-                self.audio_buffer[user.id] = {'buffer': b'', 'speaking': False}
-            
-            user_buf = self.audio_buffer[user.id]
-            
-            # Data is already PCM
-            pcm_data = data
-            
-            # Convert to mono for VAD check
+        async def listen(self):
+            while self.running and self.vc.is_connected():
+                try:
+                    # Access raw voice packets
+                    if hasattr(self.vc, 'recv_audio_packet'):
+                        packet = await self.vc.recv_audio_packet()
+                        if packet and packet.ssrc == self.member.id:
+                            await self.process_audio(packet.decrypted_data)
+                    else:
+                        # discord.py doesn't support voice receive, log once
+                        print("Voice receiving not supported with current discord.py version. Please install py-cord.")
+                        self.running = False
+                        break
+                    await asyncio.sleep(0.02)  # 20ms
+                except Exception as e:
+                    print(f"Error in voice receiver: {e}")
+                    await asyncio.sleep(1)
+                    
+        async def process_audio(self, pcm_data):
             try:
                 mono_data = audioop.tomono(pcm_data, 2, 0.5, 0.5)
                 is_speech = self.vad.is_speech(mono_data[:960], 48000)
-            except Exception as e:
-                return
-            
-            if is_speech and not user_buf['speaking']:
-                user_buf['speaking'] = True
-                user_buf['buffer'] = pcm_data
-            elif is_speech:
-                user_buf['buffer'] += pcm_data
-            elif user_buf['speaking']:
-                user_buf['speaking'] = False
-                # Send to backend
-                asyncio.create_task(self.send_audio(user_buf['buffer'], self.member_to_track))
-                user_buf['buffer'] = b''
-        
-        async def send_audio(self, pcm_data, member):
-            # Encode to opus
+                
+                if is_speech and not self.speaking:
+                    self.speaking = True
+                    self.buffer = pcm_data
+                elif is_speech:
+                    self.buffer += pcm_data
+                elif self.speaking:
+                    self.speaking = False
+                    await self.send_to_backend(self.buffer)
+                    self.buffer = b''
+            except:
+                pass
+                
+        async def send_to_backend(self, pcm_data):
             frame_size = 960
             opus_packets = []
             for i in range(0, len(pcm_data), frame_size * 4):
@@ -154,29 +156,26 @@ async def start_audio_stream(vc, member):
                     opus_packets.append(opus_packet)
                 except:
                     continue
-            
+                    
             if not opus_packets:
                 return
-            
+                
             opus_data = b''.join(opus_packets)
             
             async with aiohttp.ClientSession() as session:
                 form_data = aiohttp.FormData()
                 form_data.add_field('audio', io.BytesIO(opus_data), filename='audio.opus')
-                form_data.add_field('player_uuid', str(member.id))
-                form_data.add_field('player_name', member.display_name)
-                form_data.add_field('server_uuid', str(member.guild.id))
+                form_data.add_field('player_uuid', str(self.member.id))
+                form_data.add_field('player_name', self.member.display_name)
+                form_data.add_field('server_uuid', str(self.member.guild.id))
                 try:
                     async with session.post(f"{BACKEND_URL}/analyze", data=form_data) as resp:
-                        pass
+                        print(f"Sent audio to backend: {resp.status}")
                 except Exception as e:
                     print(f"Error sending to backend: {e}")
     
-    sink = CustomSink(member)
-    try:
-        vc.start_recording(sink, lambda: None, lambda: None)
-    except Exception as e:
-        print(f"Error starting voice receive: {e}")
+    receiver = VoiceReceiver(vc, member)
+    asyncio.create_task(receiver.listen())
 
 @bot.event
 async def on_ready():
