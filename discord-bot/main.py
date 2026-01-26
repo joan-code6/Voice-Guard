@@ -42,7 +42,7 @@ class AcceptButton(ui.View):
         self.user_id = user_id
 
     @ui.button(label="Accept TOS and Privacy Policy", style=discord.ButtonStyle.primary)
-    async def accept(self, interaction: discord.Interaction, button: ui.Button):
+    async def accept(self, button: ui.Button, interaction: discord.Interaction):
         if interaction.user.id == self.user_id:
             consented_users.add(str(self.user_id))
             save_consented()
