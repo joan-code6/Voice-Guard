@@ -36,6 +36,7 @@ intents.voice_states = True
 intents.members = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
+bot.load_extension('discord.ext.voice_recv')
 
 class AcceptButton(ui.View):
     def __init__(self, user_id):
