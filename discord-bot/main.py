@@ -57,6 +57,8 @@ class AcceptButton(ui.View):
 
 @bot.event
 async def on_voice_state_update(member, before, after):
+    if member == bot.user:
+        return  # Ignore bot's own voice state changes
     if before.channel != after.channel:
         if after.channel:  # Joined a channel
             # Check if bot is already in the channel
