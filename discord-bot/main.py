@@ -8,6 +8,7 @@ import webrtcvad
 import audioop
 from discord.ext import commands
 from discord import ui
+from discord.sinks import Sink
 import dotenv
 import os
 
@@ -17,6 +18,7 @@ TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 BACKEND_URL = os.getenv("BACKEND_URL")
 GUILDS = json.loads(os.getenv("GUILDS", "[]"))
 CONSENT_FILE = os.getenv("CONSENT_FILE")
+IGNORED_CHANNELS = json.loads(os.getenv("IGNORED_CHANNELS", "[]"))
 
 # Load consented users
 try:
@@ -60,16 +62,28 @@ async def on_voice_state_update(member, before, after):
     if member == bot.user:
         return  # Ignore bot's own voice state changes
     if before.channel != after.channel:
-        if after.channel:  # Joined a channel
-            # Check if bot is already in the channel
-            vc = None
-            for v in bot.voice_clients:
-                if v.channel == after.channel:
-                    vc = v
-                    break
-            if not vc:
-                vc = await after.channel.connect()
-            # Check if consented
+        if after.channel:  # Someone joined a channel
+            # Check if bot should join
+            if str(after.channel.id) in IGNORED_CHANNELS:
+                return  # Don't join ignored channels
+            # Find the channel with the most people (excluding ignored)
+            guild = after.channel.guild
+            voice_channels = [ch for ch in guild.voice_channels if str(ch.id) not in IGNORED_CHANNELS and ch != guild.afk_channel]
+            if not voice_channels:
+                return
+            target_channel = max(voice_channels, key=lambda ch: len([m for m in ch.members if not m.bot]))
+            # If bot is not in any VC, join the target channel
+            if not bot.voice_clients:
+                vc = await target_channel.connect()
+            else:
+                # If already in a VC, check if it's the target
+                current_vc = bot.voice_clients[0]
+                if current_vc.channel != target_channel:
+                    await current_vc.disconnect()
+                    vc = await target_channel.connect()
+                else:
+                    vc = current_vc
+            # Now handle the member
             if str(member.id) not in consented_users:
                 # Mute the user
                 await member.edit(mute=True)
@@ -144,5 +158,20 @@ async def start_audio_stream(vc, member):
 @bot.event
 async def on_ready():
     print(f'Bot is ready as {bot.user}')
+    bot.loop.create_task(check_disconnect())
+
+async def check_disconnect():
+    while True:
+        await asyncio.sleep(300)  # Check every 5 minutes
+        for vc in bot.voice_clients[:]:  # Copy list to avoid modification issues
+            guild = vc.guild
+            # Check if any voice channel in the guild has non-bot members (excluding ignored and AFK)
+            has_members = any(
+                len([m for m in ch.members if not m.bot]) > 0
+                for ch in guild.voice_channels
+                if str(ch.id) not in IGNORED_CHANNELS and ch != guild.afk_channel
+            )
+            if not has_members:
+                await vc.disconnect()
 
 bot.run(TOKEN)
