@@ -8,7 +8,6 @@ import webrtcvad
 import audioop
 from discord.ext import commands
 from discord import ui
-from discord.sinks import Sink
 import dotenv
 import os
 
@@ -36,7 +35,6 @@ intents.voice_states = True
 intents.members = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
-bot.load_extension('discord.ext.voice_recv')
 
 class AcceptButton(ui.View):
     def __init__(self, user_id):
@@ -100,29 +98,32 @@ async def on_voice_state_update(member, before, after):
                 await start_audio_stream(vc, member)
 
 async def start_audio_stream(vc, member):
-    # Use a custom sink for audio
-    class AudioSink(discord.sinks.Sink):
+    # Custom audio sink implementation
+    class AudioSink:
         def __init__(self, member):
-            super().__init__()
             self.member = member
             self.vad = webrtcvad.Vad(3)  # Aggressiveness 0-3
             self.encoder = opuslib.Encoder(48000, 2, 'voip')  # Stereo opus encoder
             self.buffer = b''
             self.speaking = False
+            self.finished = False
 
         def write(self, user, data):
-            if user != self.member:
+            if user != self.member or self.finished:
                 return
             # data is PCM 48kHz 16-bit stereo
             # Convert to mono for VAD
-            mono_data = audioop.tomono(data, 2, 0.5, 0.5)
+            mono_data = audioop.tomono(data.data if hasattr(data, 'data') else data, 2, 0.5, 0.5)
             # Check VAD
-            is_speech = self.vad.is_speech(mono_data, 48000)
+            try:
+                is_speech = self.vad.is_speech(mono_data, 48000)
+            except:
+                return
             if is_speech and not self.speaking:
                 self.speaking = True
-                self.buffer = data
+                self.buffer = data.data if hasattr(data, 'data') else data
             elif is_speech:
-                self.buffer += data
+                self.buffer += data.data if hasattr(data, 'data') else data
             elif self.speaking:
                 self.speaking = False
                 # Send buffer to backend
@@ -137,8 +138,13 @@ async def start_audio_stream(vc, member):
                 chunk = pcm_data[i:i + frame_size * 4]
                 if len(chunk) < frame_size * 4:
                     chunk += b'\x00' * (frame_size * 4 - len(chunk))
-                opus_packet = self.encoder.encode(chunk, frame_size)
-                opus_packets.append(opus_packet)
+                try:
+                    opus_packet = self.encoder.encode(chunk, frame_size)
+                    opus_packets.append(opus_packet)
+                except:
+                    continue
+            if not opus_packets:
+                return
             opus_data = b''.join(opus_packets)
             # Send to backend
             async with aiohttp.ClientSession() as session:
@@ -153,8 +159,14 @@ async def start_audio_stream(vc, member):
                 except Exception as e:
                     print(f"Error sending to backend: {e}")
 
+        def cleanup(self):
+            self.finished = True
+
     sink = AudioSink(member)
-    vc.listen(sink)
+    try:
+        vc.start_recording(sink, lambda u, e: None, lambda: None)
+    except Exception as e:
+        print(f"Error starting recording: {e}")
 
 @bot.event
 async def on_ready():
