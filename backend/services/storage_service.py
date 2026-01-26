@@ -19,8 +19,9 @@ class StorageService:
         filename = f"{player_uuid}_{server_id}_{safe_name}_{timestamp.replace(':', '-')}.opus"
         date = datetime.now().strftime("%Y-%m-%d")
         date_dir = os.path.join(self.storage_dir, date)
-        os.makedirs(date_dir, exist_ok=True)
-        file_path = os.path.join(date_dir, filename)
+        player_dir = os.path.join(date_dir, player_uuid)
+        os.makedirs(player_dir, exist_ok=True)
+        file_path = os.path.join(player_dir, filename)
         with open(file_path, 'wb') as f:
             f.write(audio_data)
         return file_path

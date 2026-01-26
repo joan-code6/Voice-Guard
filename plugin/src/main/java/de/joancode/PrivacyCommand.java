@@ -57,20 +57,12 @@ public class PrivacyCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        else if (args.length > 0 && args[0].equalsIgnoreCase("tos")) {
-            String tosText = plugin.getConfig().getString("voiceguard.privacy.tos_text", "Terms of Service not configured.");
-            final Component tosMessage = MiniMessage.miniMessage().deserialize(tosText);
-            sender.sendMessage(tosMessage);
-            return true;
-        }
-
         else if (args.length == 0 || args[0].equalsIgnoreCase("info")) {
             final Component PrivacyInfo = MiniMessage.miniMessage().deserialize(
-                "<red><bold>Privacy</bold></red> VoiceGuard collects voice data to provide its services. " +
-                "By using this plugin, you agree to our <click:open_url:'https://example.com/privacy'>Privacy Policy</click>.\n" +
-                "To accept, use <green>/privacy accept</green>.\n" +
-                "To opt-out, use <green>/privacy deny</green> or <green>/privacy opt-out</green>.\n" +
-                "To view TOS, use <green>/privacy tos</green>."
+                "<red><bold>Privacy</bold></red> You have accepted the TOS of the Server" +
+                "Open <click:open_url:'tos.outcraft.net'>tos.outcraft.net</click> to read it.\n" +
+                "You can opt out at any moment using <green>/privacy opt-out</green>." +
+                "\nBut be aware that you will be kicked from the server when opting out."
             );
 
             sender.sendMessage(PrivacyInfo);
@@ -82,7 +74,6 @@ public class PrivacyCommand implements CommandExecutor, TabCompleter {
                 "<green>/privacy info</green> - Show privacy information.\n" +
                 "<green>/privacy accept</green> - Accept the privacy policy.\n" +
                 "<green>/privacy deny</green> or <green>/privacy opt-out</green> - Opt out and leave the server.\n" +
-                "<green>/privacy tos</green> - Show the full Terms of Service.\n" +
                 "<green>/privacy help</green> - Show this help message.");
             if (sender.hasPermission("voiceguard.admin")) {
                 help.append("\n<red>/privacy admin disable</red> - Disable VoiceGuard (admin only).");
