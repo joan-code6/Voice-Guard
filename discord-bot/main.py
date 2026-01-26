@@ -4,7 +4,6 @@ import asyncio
 import aiohttp
 import io
 import opuslib
-import webrtcvad
 import audioop
 from discord.ext import commands
 from discord import ui
@@ -103,10 +102,7 @@ async def start_audio_stream(vc, member):
         def __init__(self, vc, member):
             self.vc = vc
             self.member = member
-            self.vad = webrtcvad.Vad(3)
             self.encoder = opuslib.Encoder(48000, 2, 'voip')
-            self.buffer = b''
-            self.speaking = False
             self.running = True
             
         async def listen(self):
@@ -129,18 +125,7 @@ async def start_audio_stream(vc, member):
                     
         async def process_audio(self, pcm_data):
             try:
-                mono_data = audioop.tomono(pcm_data, 2, 0.5, 0.5)
-                is_speech = self.vad.is_speech(mono_data[:960], 48000)
-                
-                if is_speech and not self.speaking:
-                    self.speaking = True
-                    self.buffer = pcm_data
-                elif is_speech:
-                    self.buffer += pcm_data
-                elif self.speaking:
-                    self.speaking = False
-                    await self.send_to_backend(self.buffer)
-                    self.buffer = b''
+                await self.send_to_backend(pcm_data)
             except:
                 pass
                 
