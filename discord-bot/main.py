@@ -98,76 +98,83 @@ async def on_voice_state_update(member, before, after):
                 await start_audio_stream(vc, member)
 
 async def start_audio_stream(vc, member):
-    # Custom audio callback for voice receive
-    audio_buffers = {}
+    # Use Pycord's voice receive with sink
+    from discord.sinks import WaveSink
     
-    def audio_callback(user, data):
-        if user.id != member.id:
-            return
-        
-        # Initialize buffer for this user if not exists
-        if user.id not in audio_buffers:
-            audio_buffers[user.id] = {
-                'vad': webrtcvad.Vad(3),
-                'encoder': opuslib.Encoder(48000, 2, 'voip'),
-                'buffer': b'',
-                'speaking': False
-            }
-        
-        user_data = audio_buffers[user.id]
-        
-        # data.pcm is the audio data
-        pcm_data = data.pcm if hasattr(data, 'pcm') else data
-        
-        # Convert to mono for VAD
-        try:
-            mono_data = audioop.tomono(pcm_data, 2, 0.5, 0.5)
-            is_speech = user_data['vad'].is_speech(mono_data, 48000)
-        except:
-            return
-        
-        if is_speech and not user_data['speaking']:
-            user_data['speaking'] = True
-            user_data['buffer'] = pcm_data
-        elif is_speech:
-            user_data['buffer'] += pcm_data
-        elif user_data['speaking']:
-            user_data['speaking'] = False
-            # Send buffer to backend
-            asyncio.create_task(send_audio_to_backend(user_data['buffer'], member, user_data['encoder']))
-            user_data['buffer'] = b''
-    
-    async def send_audio_to_backend(pcm_data, member, encoder):
-        # Encode to opus
-        frame_size = 960  # 20ms at 48kHz
-        opus_packets = []
-        for i in range(0, len(pcm_data), frame_size * 4):  # 4 bytes per sample stereo
-            chunk = pcm_data[i:i + frame_size * 4]
-            if len(chunk) < frame_size * 4:
-                chunk += b'\x00' * (frame_size * 4 - len(chunk))
+    class CustomSink(WaveSink):
+        def __init__(self, member_to_track):
+            super().__init__()
+            self.member_to_track = member_to_track
+            self.vad = webrtcvad.Vad(3)
+            self.encoder = opuslib.Encoder(48000, 2, 'voip')
+            self.audio_buffer = {}
+            
+        @WaveSink.listener()
+        def on_data(self, user, data):
+            if user.id != self.member_to_track.id:
+                return
+                
+            # Initialize user buffer if needed
+            if user.id not in self.audio_buffer:
+                self.audio_buffer[user.id] = {'buffer': b'', 'speaking': False}
+            
+            user_buf = self.audio_buffer[user.id]
+            
+            # Data is already PCM
+            pcm_data = data
+            
+            # Convert to mono for VAD check
             try:
-                opus_packet = encoder.encode(chunk, frame_size)
-                opus_packets.append(opus_packet)
-            except:
-                continue
-        if not opus_packets:
-            return
-        opus_data = b''.join(opus_packets)
-        # Send to backend
-        async with aiohttp.ClientSession() as session:
-            data = aiohttp.FormData()
-            data.add_field('audio', io.BytesIO(opus_data), filename='audio.opus')
-            data.add_field('player_uuid', str(member.id))
-            data.add_field('player_name', member.display_name)
-            data.add_field('server_uuid', str(member.guild.id))
-            try:
-                async with session.post(f"{BACKEND_URL}/analyze", data=data) as resp:
-                    pass  # Maybe log response
+                mono_data = audioop.tomono(pcm_data, 2, 0.5, 0.5)
+                is_speech = self.vad.is_speech(mono_data[:960], 48000)
             except Exception as e:
-                print(f"Error sending to backend: {e}")
+                return
+            
+            if is_speech and not user_buf['speaking']:
+                user_buf['speaking'] = True
+                user_buf['buffer'] = pcm_data
+            elif is_speech:
+                user_buf['buffer'] += pcm_data
+            elif user_buf['speaking']:
+                user_buf['speaking'] = False
+                # Send to backend
+                asyncio.create_task(self.send_audio(user_buf['buffer'], self.member_to_track))
+                user_buf['buffer'] = b''
+        
+        async def send_audio(self, pcm_data, member):
+            # Encode to opus
+            frame_size = 960
+            opus_packets = []
+            for i in range(0, len(pcm_data), frame_size * 4):
+                chunk = pcm_data[i:i + frame_size * 4]
+                if len(chunk) < frame_size * 4:
+                    chunk += b'\x00' * (frame_size * 4 - len(chunk))
+                try:
+                    opus_packet = self.encoder.encode(chunk, frame_size)
+                    opus_packets.append(opus_packet)
+                except:
+                    continue
+            
+            if not opus_packets:
+                return
+            
+            opus_data = b''.join(opus_packets)
+            
+            async with aiohttp.ClientSession() as session:
+                form_data = aiohttp.FormData()
+                form_data.add_field('audio', io.BytesIO(opus_data), filename='audio.opus')
+                form_data.add_field('player_uuid', str(member.id))
+                form_data.add_field('player_name', member.display_name)
+                form_data.add_field('server_uuid', str(member.guild.id))
+                try:
+                    async with session.post(f"{BACKEND_URL}/analyze", data=form_data) as resp:
+                        pass
+                except Exception as e:
+                    print(f"Error sending to backend: {e}")
     
+    sink = CustomSink(member)
     try:
-        vc.listen(discord.UserFilter(audio_callback, member))
+        vc.start_recording(sink, lambda: None, lambda: None)
     except Exception as e:
         print(f"Error starting voice receive: {e}")
 
